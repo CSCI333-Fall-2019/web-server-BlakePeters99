@@ -79,6 +79,7 @@ namespace WebServer
                     }
             }
         }
+        // Standard format
         public string CreateHeader(string sHTTPVersion, string sMIMEHeader, string sStatus)
         {
             string sBuffer = "";
