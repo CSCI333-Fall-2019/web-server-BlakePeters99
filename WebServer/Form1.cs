@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -15,7 +10,30 @@ namespace WebServer
 {
     public partial class WebServerPage : Form
     {
-        private int port = 2858;
+        private bool _isRunning;
+        static readonly object _isRunningLock = new object();
+        // setting up get and set
+        private bool IsRunning
+        {
+            get
+            {
+                // Thread safe get & set
+                lock (_isRunningLock)
+                {
+                    return this._isRunning;
+                }
+            }
+            set
+            {
+                lock (_isRunningLock)
+                {
+                    this._isRunning = value;
+                    Start.Enabled = !value;
+                    StopEnd.Enabled = value;
+                }
+            }
+            
+        }
 
         IPAddress localAddr = IPAddress.Parse("127.0.0.1");
         TcpListener server = null;
@@ -26,24 +44,57 @@ namespace WebServer
             InitializeComponent();
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void Start_Click(object sender, EventArgs e)
         {
-            //ThreadPool.QueueUserWorkItem(StartServer, port);
-            StartServer(port);
+            _isRunning = true;
+            ThreadPool.QueueUserWorkItem(StartServer, this._isRunning);
 
-            MessageBox.Show("Hello! How are you?");
         }
 
         private void StopEnd_Click(object sender, EventArgs e)
         {
-            server.Stop();
-            MessageBox.Show("I'm well! Thanks for asking!! :)");
+            // stopping server
+            _isRunning = false;
         }
-        private void StartServer(int port)
+        private void StartServer(object isRun)
         {
+            int port = 2858;
             server = new TcpListener(localAddr, port);
             server.Start();
+            bool isRunning = (bool) isRun;
+            // while the server is running
+            while (isRunning)
+            {
+                    try
+                    {
+                        TcpClient client = server.AcceptTcpClient();
+                        ThreadPool.QueueUserWorkItem(GetRequestedItem, client);
+                        string header = CreateHeader(@"Http/1.0", @"text/html", "200 OK");
+                        client.Client.Send(Encoding.ASCII.GetBytes(header));
+
+                    }
+                    catch (Exception e)
+                    {
+                        MessageBox.Show("Error in web server: " + e.Message);
+                    }
+            }
         }
+        public string CreateHeader(string sHTTPVersion, string sMIMEHeader, string sStatus)
+        {
+            string sBuffer = "";
+
+            sBuffer = sBuffer + sHTTPVersion + sStatus + "\r\n";
+            sBuffer = sBuffer + "Content-Type: " + sMIMEHeader + "\r\n";
+
+            return sBuffer;
+        }
+        public void GetRequestedItem (object client)
+        {
+            TcpClient c = (TcpClient) client;
+            // Some sort of get Call to recieve the request
+
+        }
+        /*
         public void SetForegroundData(string value)
         {
             // Is this a background thread? If so, call it's parent
@@ -55,5 +106,6 @@ namespace WebServer
             // If parent, send the value to the parent
             //textOutput.Text = value;
         }
+        */
     }
 }
